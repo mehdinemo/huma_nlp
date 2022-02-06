@@ -1,6 +1,6 @@
 from bs4 import BeautifulSoup
 import requests
-from os import path, makedirs
+from os import path, makedirs, listdir
 
 
 def download_save_mit_dataset():
@@ -22,5 +22,20 @@ def download_save_mit_dataset():
                 f.write(r.content)
 
 
+def open_prepare():
+    my_path = 'data'
+    only_files = [path.join(my_path, f) for f in listdir(my_path) if
+                  path.isfile(path.join(my_path, f)) and f.endswith('.bio')]
+
+    files_dic = {}
+    for b_f in only_files:
+        with open(b_f, 'r')as f:
+            files_dic.update({path.splitext(path.basename(b_f))[0]: f.readlines()})
+
+    return files_dic
+
+
 if __name__ == '__main__':
-    download_save_mit_dataset()
+    # download_save_mit_dataset()
+    files_dic = open_prepare()
+    print('done')
