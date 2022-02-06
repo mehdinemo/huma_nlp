@@ -1,0 +1,4 @@
+*       text=auto
+*       text eol=lf
+*.h5    binary
+*.sav    binary
