@@ -50,6 +50,24 @@ def mit_list2df(df_list):
     return new_df_list
 
 
+def prepare_data():
+    files_dic = open_files()
+
+    tmp_list = mit_list2df(files_dic['engtrain'])
+    df_train = pd.read_csv(io.StringIO(''.join(tmp_list)), delim_whitespace=True, header=None,
+                           names=['sentence_id', 'labels', 'words'])
+    df_train = df_train[df_train['words'].notnull()]
+
+    tmp_list = mit_list2df(files_dic['engtest'])
+    df_test = pd.read_csv(io.StringIO(''.join(tmp_list)), delim_whitespace=True, header=None,
+                          names=['sentence_id', 'labels', 'words'])
+    df_test = df_test[df_test['words'].notnull()]
+
+    label = df_train["labels"].unique().tolist()
+
+    return df_train, df_test, label
+
+
 def train_eval_save_model(df_train, df_test, label):
     # region model args
     model_args = NERArgs()
@@ -91,24 +109,6 @@ def train_eval_save_model(df_train, df_test, label):
     df.to_csv('eval_results.csv')
 
 
-def prepare_data():
-    files_dic = open_files()
-
-    tmp_list = mit_list2df(files_dic['engtrain'])
-    df_train = pd.read_csv(io.StringIO(''.join(tmp_list)), delim_whitespace=True, header=None,
-                           names=['sentence_id', 'labels', 'words'])
-    df_train = df_train[df_train['words'].notnull()]
-
-    tmp_list = mit_list2df(files_dic['engtest'])
-    df_test = pd.read_csv(io.StringIO(''.join(tmp_list)), delim_whitespace=True, header=None,
-                          names=['sentence_id', 'labels', 'words'])
-    df_test = df_test[df_test['words'].notnull()]
-
-    label = df_train["labels"].unique().tolist()
-
-    return df_train, df_test, label
-
-
 def main():
     if train:
         df_train, df_test, label = prepare_data()
@@ -126,5 +126,6 @@ def main():
 
 if __name__ == '__main__':
     train = False
+
     download_save_mit_dataset()
     main()
