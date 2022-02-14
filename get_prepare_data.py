@@ -110,22 +110,21 @@ def prepare_data():
 
 
 def main():
-    df_train, df_test, label = prepare_data()
-
-    df_train = df_train.sample(frac=0.05, ignore_index=True)
-    df_test = df_test.sample(frac=0.05, ignore_index=True)
-
     if train:
+        df_train, df_test, label = prepare_data()
+
+        df_train = df_train.sample(frac=0.05, ignore_index=True)
+        df_test = df_test.sample(frac=0.05, ignore_index=True)
         train_eval_save_model(df_train, df_test, label)
 
-    # model_bert = NERModel('bert', 'test_output/best_model', use_cuda=False)
-    # prediction, model_output = model_bert.predict(
-    #     ["What 2011 animated movie starred the voices of johnny deep and rahul poddar"])
+    model_bert = NERModel('bert', 'outputs/best_model/', use_cuda=False)
+    prediction, model_output = model_bert.predict(
+        ["What 2011 animated movie starred the voices of johnny deep and rahul poddar"])
 
     print('done')
 
 
 if __name__ == '__main__':
-    train = True
+    train = False
     download_save_mit_dataset()
     main()
