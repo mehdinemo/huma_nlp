@@ -2,12 +2,14 @@ import pandas as pd
 import io
 from bs4 import BeautifulSoup
 import requests
+from clint.textui import progress
 from os import path, makedirs, listdir, rename
 from simpletransformers.ner import NERModel, NERArgs
 
 
 def download_save_mit_dataset():
-    makedirs("data", exist_ok=True)
+    mit_path = "data/mit_movie_corpus"
+    makedirs(mit_path, exist_ok=True)
 
     url = 'https://groups.csail.mit.edu/sls/downloads/movie'
     reqs = requests.get(url)
@@ -16,13 +18,18 @@ def download_save_mit_dataset():
     for link in soup.find_all('a'):
         l = link.get('href')
         if '.bio' in l:
-            file_path = path.join('data', l)
+            file_path = path.join(mit_path, l)
             if path.exists(file_path) and path.getsize(file_path) > 0:
                 continue
             print(f"Downloading {l}")
-            r = requests.get('/'.join((url, l)))
+            r = requests.get('/'.join((url, l)), stream=True)
             with open(file_path, 'wb') as f:
-                f.write(r.content)
+                # f.write(r.content)
+                total_length = int(r.headers.get('content-length'))
+                for chunk in progress.bar(r.iter_content(chunk_size=1024), expected_size=(total_length / 1024) + 1):
+                    if chunk:
+                        f.write(chunk)
+                        f.flush()
 
 
 def open_files():
