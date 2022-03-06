@@ -1,10 +1,9 @@
 import pandas as pd
 import io
-from bs4 import BeautifulSoup
-import requests
-from clint.textui import progress
 from os import path, makedirs, listdir, rename
 from simpletransformers.ner import NERModel, NERArgs
+from datetime import datetime
+import download_filles as df
 
 
 def download_save_mit_dataset():
@@ -12,24 +11,7 @@ def download_save_mit_dataset():
     makedirs(mit_path, exist_ok=True)
 
     url = 'https://groups.csail.mit.edu/sls/downloads/movie'
-    reqs = requests.get(url)
-    soup = BeautifulSoup(reqs.text, 'html.parser')
-
-    for link in soup.find_all('a'):
-        l = link.get('href')
-        if '.bio' in l:
-            file_path = path.join(mit_path, l)
-            if path.exists(file_path) and path.getsize(file_path) > 0:
-                continue
-            print(f"Downloading {l}")
-            r = requests.get('/'.join((url, l)), stream=True)
-            with open(file_path, 'wb') as f:
-                # f.write(r.content)
-                total_length = int(r.headers.get('content-length'))
-                for chunk in progress.bar(r.iter_content(chunk_size=1024), expected_size=(total_length / 1024) + 1):
-                    if chunk:
-                        f.write(chunk)
-                        f.flush()
+    df.download_save(url=url, file_dir=mit_path, extensions=['bio'])
 
 
 def open_files():
@@ -81,24 +63,30 @@ def train_eval_save_model(df_train, df_test, label):
     model_args.num_train_epochs = 2
     model_args.learning_rate = 1e-4
     model_args.overwrite_output_dir = True
-    model_args.train_batch_size = 32
+    model_args.train_batch_size = 10
     model_args.eval_batch_size = 8
     model_args.evaluate_during_training = True
     model_args.evaluate_during_training_steps = 1000
     model_args.evaluate_during_training_verbose = True
     # endregion
 
-    model_bert = NERModel('bert', 'bert-base-cased', labels=label, args=model_args, use_cuda=False)
+    print(f'{datetime.now()}\t start bert:')
+    model_bert = NERModel('bert', 'bert-base-cased', labels=label, args=model_args, use_cuda=True)
     model_bert.train_model(df_train, eval_data=df_test, output_dir='bert_output/')
     rename('outputs', 'bert_best')
+    print(f'{datetime.now()}\t end bert')
 
-    model_distilbert = NERModel('distilbert', 'distilbert-base-cased', labels=label, args=model_args, use_cuda=False)
+    print(f'{datetime.now()}\t start distilbert:')
+    model_distilbert = NERModel('distilbert', 'distilbert-base-cased', labels=label, args=model_args, use_cuda=True)
     model_distilbert.train_model(df_train, eval_data=df_test, output_dir='distilbert_output/')
     rename('outputs', 'distilbert_best')
+    print(f'{datetime.now()}\t end distilbert')
 
-    model_roberta = NERModel('roberta', 'roberta-base', labels=label, args=model_args, use_cuda=False)
+    print(f'{datetime.now()}\t start roberta:')
+    model_roberta = NERModel('roberta', 'roberta-base', labels=label, args=model_args, use_cuda=True)
     model_roberta.train_model(df_train, eval_data=df_test, output_dir='roberta_output')
     rename('outputs', 'roberta_best')
+    print(f'{datetime.now()}\t end roberta:')
 
     result_bert, model_outputs, preds_list = model_bert.eval_model(df_test)
     result_distilbert, model_outputs, preds_list = model_distilbert.eval_model(df_test)
@@ -120,19 +108,20 @@ def main():
     if train:
         df_train, df_test, label = prepare_data()
 
-        df_train = df_train.sample(frac=0.05, ignore_index=True)
-        df_test = df_test.sample(frac=0.05, ignore_index=True)
+        # df_train = df_train.sample(frac=0.05, ignore_index=True)
+        # df_test = df_test.sample(frac=0.05, ignore_index=True)
         train_eval_save_model(df_train, df_test, label)
 
-    model_bert = NERModel('bert', 'outputs/best_model/', use_cuda=False)
-    prediction, model_output = model_bert.predict(
-        ["What 2011 animated movie starred the voices of johnny deep and rahul poddar"])
+    # model_bert = NERModel('bert', 'outputs/best_model/', use_cuda=False)
+    # prediction, model_output = model_bert.predict(
+    #     ["What 2011 animated movie starred the voices of johnny deep and rahul poddar"])
 
     print('done')
 
 
 if __name__ == '__main__':
-    train = False
+    if df.query_yes_no(question='downloading mit movie corpus dataset?'):
+        download_save_mit_dataset()
 
-    download_save_mit_dataset()
+    train = False
     main()
