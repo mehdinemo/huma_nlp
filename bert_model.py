@@ -1,79 +1,10 @@
 import sys
-import io
 import logging
-from os import path, makedirs, listdir, rename
+from os import rename
 import pandas as pd
 from simpletransformers.ner import NERModel, NERArgs
 import download_filles as df_module
-
-_mit_path = 'data/mit_movie_corpus'
-
-
-def check_mit_exists():
-    mit_files = ['engtrain.bio', 'engtest.bio']
-    for f in mit_files:
-        filename = path.join(_mit_path, f)
-        if not path.isfile(filename):
-            return False
-
-    return True
-
-
-def download_save_mit_dataset():
-    makedirs(_mit_path, exist_ok=True)
-
-    url = "https://groups.csail.mit.edu/sls/downloads/movie"
-    df_module.download_save(url=url, file_dir=_mit_path, extensions=['bio'])
-
-
-def open_mit_files():
-    try:
-        only_files = [path.join(_mit_path, f) for f in listdir(_mit_path) if
-                      path.isfile(path.join(_mit_path, f)) and f.endswith('.bio')]
-    except FileNotFoundError as ex:
-        logger.error(f'FileNotFoundError: {ex}')
-        raise FileNotFoundError(ex)
-
-    files_dic = {}
-    for b_f in only_files:
-        try:
-            with open(b_f, 'r') as f:
-                files_dic.update({path.splitext(path.basename(b_f))[0]: f.readlines()})
-        except Exception as ex:
-            logger.error(f'Loading file error: {ex}')
-            raise Exception(ex)
-
-    return files_dic
-
-
-def mit_list2df(df_list):
-    sentense_id = 0
-    new_df_list = []
-    for line in df_list:
-        if line == '\n':
-            sentense_id += 1
-        else:
-            new_df_list.append(str(sentense_id) + '\t' + line)
-
-    return new_df_list
-
-
-def prepare_data():
-    files_dic = open_mit_files()
-
-    tmp_list = mit_list2df(files_dic['engtrain'])
-    df_train = pd.read_csv(io.StringIO(''.join(tmp_list)), delim_whitespace=True, header=None,
-                           names=['sentence_id', 'labels', 'words'])
-    df_train = df_train[df_train['words'].notnull()]
-
-    tmp_list = mit_list2df(files_dic['engtest'])
-    df_test = pd.read_csv(io.StringIO(''.join(tmp_list)), delim_whitespace=True, header=None,
-                          names=['sentence_id', 'labels', 'words'])
-    df_test = df_test[df_test['words'].notnull()]
-
-    label = df_train["labels"].unique().tolist()
-
-    return df_train, df_test, label
+import get_prepare_mit_files as gp_mit
 
 
 def train_save_model(model_type, model_name, train_data, eval_data, labels, model_args):
@@ -99,7 +30,7 @@ def input_frac_data():
 def train():
     # region load & prepare data
     logger.info('Load and prepare mit movie corpus dataset...')
-    df_train, df_test, label = prepare_data()
+    df_train, df_test, label = gp_mit.prepare_data(logger)
     logger.info(f'loading {df_train.shape[0]} train and {df_test.shape[0]} test data.')
 
     frac = input_frac_data()
@@ -173,11 +104,11 @@ def test(sentences_list: list) -> pd.DataFrame:
 
 
 def main():
-    if not check_mit_exists():
+    if not gp_mit.check_mit_exists():
         logger.warning("the mit movie corpus files do not exist. you need to download them in the first run!!!")
         if df_module.query_yes_no(question='download mit movie corpus dataset?'):
             logger.info('downloading mit movie corpus')
-            download_save_mit_dataset()
+            gp_mit.download_save_mit_dataset()
         else:
             logger.warning('mit movie corpus dataset needs in first run! closing program...')
             sys.exit(0)
