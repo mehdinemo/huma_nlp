@@ -1,22 +1,32 @@
+import sys
 import pandas as pd
 import logging
 import io
 from os import path, makedirs, listdir, rename
 from simpletransformers.ner import NERModel, NERArgs
 import download_filles as df
-from config import config
+
+mit_path = 'data/mit_movie_corpus'
+
+
+def check_mit_exists():
+    mit_files = ['engtrain.bio', 'engtest.bio']
+    for f in mit_files:
+        filename = path.join(mit_path, f)
+        if not path.isfile(filename):
+            return False
+
+    return True
 
 
 def download_save_mit_dataset():
-    mit_path = config['mit_path']
     makedirs(mit_path, exist_ok=True)
 
-    url = config['mit_url']
+    url = "https://groups.csail.mit.edu/sls/downloads/movie"
     df.download_save(url=url, file_dir=mit_path, extensions=['bio'])
 
 
 def open_mit_files():
-    mit_path = config['mit_path']
     try:
         only_files = [path.join(mit_path, f) for f in listdir(mit_path) if
                       path.isfile(path.join(mit_path, f)) and f.endswith('.bio')]
@@ -75,6 +85,8 @@ def train_save_model(model_type, model_name, train_data, eval_data, labels, mode
 def train():
     logger.info('Load and prepare data')
     df_train, df_test, label = prepare_data()
+    df_train = df_train.sample(frac=0.01, ignore_index=True)
+    df_test = df_test.sample(frac=0.01, ignore_index=True)
 
     # region model args
     model_args = NERArgs()
@@ -88,6 +100,7 @@ def train():
     model_args.evaluate_during_training_verbose = True
     # endregion
 
+    use_cuda = False
     models = {'bert': 'bert-base-cased',
               'distilbert': 'distilbert-base-cased',
               'roberta': 'roberta-base'}
@@ -95,7 +108,7 @@ def train():
     for model_type, model_name in models.items():
         logger.info(f'train and evaluate {model_type}')
         try:
-            train_save_model(model_type, model_name, df_train, df_test, label, model_args, use_cuda=True)
+            train_save_model(model_type, model_name, df_train, df_test, label, model_args, use_cuda)
             rename('outputs', f'{model_type}_outputs')
         except Exception as ex:
             logger.error(ex)
@@ -123,8 +136,13 @@ def test():
                  'Best new action movies of Vin Diesel']
     sentence_li = []
     for m in models:
-        model_bert = NERModel(m, f'All Models/{m}_outputs/best_model/', use_cuda=True)
-        prediction, model_output = model_bert.predict(sentences)
+        logger.info(f'loading {m} and prediction...')
+        try:
+            model_bert = NERModel(m, f'{m}_outputs/best_model/', use_cuda=False)
+            prediction, model_output = model_bert.predict(sentences)
+        except Exception as ex:
+            logger.error(f'could not load {m}. Error: {ex}')
+            raise Exception(ex)
 
         for i in range(len(prediction)):
             kl = [list(p.keys())[0] for p in prediction[i]]
@@ -153,9 +171,17 @@ if __name__ == '__main__':
             logging.StreamHandler()
         ])
     logger = logging.getLogger()
-    # if df.query_yes_no(question='downloading mit movie corpus dataset?'):
-    #     download_save_mit_dataset()
-    #
 
-    train()
-    # df = test()
+    if not check_mit_exists():
+        logger.warning("the mit movie corpus files do not exist. you need to download them in the first run!!!")
+        if df.query_yes_no(question='download mit movie corpus dataset?'):
+            logger.info('downloading mit movie corpus')
+            download_save_mit_dataset()
+        else:
+            logger.warning('mit movie corpus dataset needs in first run! closing program...')
+            sys.exit()
+
+    if df.query_yes_no(question='train bert models?'):
+        train()
+    df = test()
+    df.to_csv('results.csv')
