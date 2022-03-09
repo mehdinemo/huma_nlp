@@ -55,7 +55,7 @@ def query_yes_no(question, default="yes"):
             sys.stdout.write("Please respond with 'yes' or 'no' " "(or 'y' or 'n').\n")
 
 
-def download_save(url: str, file_dir: str, extensions: list, overwrite=False):
+def download_save(url: str, file_dir: str, extensions: list, overwrite=True):
     makedirs(file_dir, exist_ok=True)
 
     reqs = requests.get(url)
@@ -65,7 +65,7 @@ def download_save(url: str, file_dir: str, extensions: list, overwrite=False):
         l = link.get('href')
         if l.endswith(tuple(extensions)):
             file_path = path.join(file_dir, basename(l))
-            if overwrite:
+            if overwrite and path.exists(file_path):
                 os.remove(file_path)
             elif path.exists(file_path) and path.getsize(file_path) > 0:
                 continue
